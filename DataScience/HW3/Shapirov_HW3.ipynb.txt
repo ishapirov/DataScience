@@ -1,0 +1,488 @@
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "# Homework 3\n",
+    "In this homework assignment, you will implement a univariate feature selection method. \n",
+    "\n",
+    "You will be given a toy dataset called 'Car Evaluation Data Set' (see: http://archive.ics.uci.edu/ml/datasets/Car+Evaluation for details).\n",
+    "You are not required to, but advised to test your code with the toy dataset, or any other dataset that contains categorical variables.\n",
+    "\n",
+    "The given dataset contains six descriptive features and a target variable. Each of those are ordinal scale, categorical variables. The name of the target feature is 'evaluation'. \n",
+    "\n",
+    "Note here that you are expected to write your own code, so DO NOT COPY AND PASTE CODE OR USE LIBRARY FUNCTIONS. The goal of the homework is not to see if you can call library functions but to have you practice with the impurity measures and feature selection techniques.\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 99,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "%matplotlib inline\n",
+    "import pandas as pd\n",
+    "import numpy as np\n",
+    "import matplotlib\n",
+    "import matplotlib.pyplot as plt"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "### Read the dataset"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 100,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "<class 'pandas.core.frame.DataFrame'>\n",
+      "RangeIndex: 1728 entries, 0 to 1727\n",
+      "Data columns (total 7 columns):\n",
+      " #   Column      Non-Null Count  Dtype \n",
+      "---  ------      --------------  ----- \n",
+      " 0   buying      1728 non-null   object\n",
+      " 1   maint       1728 non-null   object\n",
+      " 2   doors       1728 non-null   object\n",
+      " 3   persons     1728 non-null   object\n",
+      " 4   lug_boot    1728 non-null   object\n",
+      " 5   safety      1728 non-null   object\n",
+      " 6   evaluation  1728 non-null   object\n",
+      "dtypes: object(7)\n",
+      "memory usage: 94.6+ KB\n"
+     ]
+    }
+   ],
+   "source": [
+    "edf = pd.read_csv('careval.csv')\n",
+    "# edf.head()\n",
+    "edf.info()"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "You will create a method called IUFS (impurity-based univariate feature selection), which will select the most informative features with a univariate feature selection schema. This feature selection method will take the dataset, name of the target variable, number of features to be selected (k) and the measure of impurity as an input, and will output the names of k best features based on the information gain. You are expected to implement information gain, entropy and Gini index functions. Note here that this will be a univariate selection, which means that you need to test the features individually."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 101,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "2.0"
+      ]
+     },
+     "execution_count": 101,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "# entropy (H)\n",
+    "def entropy(feature, dataset):\n",
+    "    \"\"\"Calculates the entropy of a feature in a given dataset.\n",
+    "    \n",
+    "    Parameters\n",
+    "    ----------\n",
+    "    feature: str\n",
+    "        name of the feature\n",
+    "    dataset: pd.DataFrame\n",
+    "        dataframe for the dataset\n",
+    "    Returns\n",
+    "    -------\n",
+    "    float\n",
+    "        entropy for the feature in the dataset\n",
+    "    \"\"\"\n",
+    "    df = dataset[feature]\n",
+    "    totalValues = df.size\n",
+    "    uniqueValues = df.unique()\n",
+    "    uniqueValuesCount = []\n",
+    "    \n",
+    "    for i in range(uniqueValues.size):\n",
+    "        uniqueValuesCount.append(0)\n",
+    "    \n",
+    "    \n",
+    "    for row in df.iteritems():\n",
+    "        uniqueValuesCount[uniqueValues.tolist().index(row[1])] += 1\n",
+    "    \n",
+    "    numEntropy = 0.0\n",
+    "    length = len(uniqueValuesCount)\n",
+    "    for i in range(length):\n",
+    "        insideLog = uniqueValuesCount[i]/totalValues\n",
+    "        if insideLog != 0:\n",
+    "            numEntropy += (uniqueValuesCount[i]/totalValues)*np.log2((uniqueValuesCount[i]/totalValues))\n",
+    "        else:\n",
+    "            numEntropy += 0\n",
+    "    return -numEntropy\n",
+    "    pass\n",
+    "\n",
+    "entropy('buying', edf) \n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 102,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "0.75"
+      ]
+     },
+     "execution_count": 102,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "# gini index (Gini)\n",
+    "\n",
+    "def gini(feature, dataset):\n",
+    "    \"\"\"Calculates the gini index of a feature in a given dataset.\n",
+    "    \n",
+    "    Parameters\n",
+    "    ----------\n",
+    "    feature: str\n",
+    "        name of the feature\n",
+    "    dataset: pd.DataFrame\n",
+    "        dataframe for the dataset\n",
+    "    Returns\n",
+    "    -------\n",
+    "    float\n",
+    "        gini index for the feature in the dataset\n",
+    "    \"\"\"\n",
+    "    df = dataset[feature]\n",
+    "    totalValues = df.size\n",
+    "    uniqueValues = df.unique()\n",
+    "    uniqueValuesCount = []\n",
+    "    \n",
+    "    for i in range(uniqueValues.size):\n",
+    "        uniqueValuesCount.append(0)\n",
+    "    \n",
+    "    \n",
+    "    for row in df.iteritems():\n",
+    "        uniqueValuesCount[uniqueValues.tolist().index(row[1])] += 1\n",
+    "        \n",
+    "    giniNum = 1.0\n",
+    "    length = len(uniqueValuesCount)\n",
+    "    for i in range(length):\n",
+    "        giniNum -= ((uniqueValuesCount[i]/totalValues)*(uniqueValuesCount[i]/totalValues))\n",
+    "    return giniNum\n",
+    "    pass\n",
+    "\n",
+    "gini('buying', edf) "
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 106,
+   "metadata": {
+    "scrolled": true
+   },
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "0.014286077889231835"
+      ]
+     },
+     "execution_count": 106,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "# information gain (IG)\n",
+    "\n",
+    "def IG(feature, target, dataset, measure):\n",
+    "    \"\"\"Calculates the information gain of a feature for a given target variable and a dataset.\n",
+    "    \n",
+    "    Parameters\n",
+    "    ----------\n",
+    "    feature: str\n",
+    "        name of the feature\n",
+    "    target: str\n",
+    "        name of the target variable\n",
+    "    dataset: pd.DataFrame\n",
+    "        dataframe for the dataset\n",
+    "    measure: str ('entropy' or 'gini')\n",
+    "        measure of impurity to be used\n",
+    "    Returns\n",
+    "    -------\n",
+    "    float\n",
+    "        information gain for the feature in the dataset for a given target variable\n",
+    "    \"\"\"\n",
+    "    totalValues = dataset[feature].size\n",
+    "    if measure == 'entropy':\n",
+    "       \n",
+    "        uniqueValues = dataset[feature].unique()\n",
+    "        uniqueValuesCount = []\n",
+    "        \n",
+    "        for i in range(uniqueValues.size):\n",
+    "            uniqueValuesCount.append(0)\n",
+    "        for row in dataset.iterrows():\n",
+    "            uniqueValuesCount[uniqueValues.tolist().index(row[1][feature])] = uniqueValuesCount[uniqueValues.tolist().index(row[1][feature])]+1\n",
+    "        \n",
+    "        infoGain = entropy(target,dataset)\n",
+    "        \n",
+    "        length = len(uniqueValuesCount)\n",
+    "        for i in range(length):\n",
+    "            numValuesI = uniqueValuesCount[i]\n",
+    "            infoGain -= (numValuesI/totalValues)*(entropy(target,dataset.loc[dataset[feature] == uniqueValues[i]]))\n",
+    "           \n",
+    "        return infoGain\n",
+    "    \n",
+    "    elif measure == 'gini':\n",
+    "        \n",
+    "        uniqueValues = dataset[feature].unique()\n",
+    "        uniqueValuesCount = []\n",
+    "        \n",
+    "        for i in range(uniqueValues.size):\n",
+    "            uniqueValuesCount.append(0)\n",
+    "        for row in dataset.iterrows():\n",
+    "            uniqueValuesCount[uniqueValues.tolist().index(row[1][feature])] = uniqueValuesCount[uniqueValues.tolist().index(row[1][feature])]+1\n",
+    "        \n",
+    "        infoGain = gini(target,dataset)\n",
+    "        length = len(uniqueValues)\n",
+    "       \n",
+    "        for i in range(length):  \n",
+    "            numValuesI = uniqueValuesCount[i]\n",
+    "            infoGain -= (numValuesI/totalValues)*(gini(target,dataset.loc[dataset[feature] == uniqueValues[i]]))\n",
+    "            \n",
+    "        return infoGain\n",
+    "    \n",
+    "    else : return\n",
+    "  \n",
+    "    pass\n",
+    "\n",
+    "\n",
+    "IG('buying','evaluation', edf, 'gini') "
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 107,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "['safety', 'persons']"
+      ]
+     },
+     "execution_count": 107,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "def IUFS(target, dataset, k, measure='entropy'):\n",
+    "    \"\"\"Finds k most informative features in the given dataset based on the target variable\n",
+    "        using information gain with the selected measure.\n",
+    "        \n",
+    "    Parameters\n",
+    "    ----------\n",
+    "    target: str\n",
+    "        name of the target variable\n",
+    "    dataset: pd.DataFrame\n",
+    "        dataframe for the dataset\n",
+    "    k: int\n",
+    "        number of features to return, must be less than or equal to number of descriptive features in dataset.\n",
+    "        in other words, 0 < k < len(dataset.columns).\n",
+    "    measure: str, 'entropy' or 'gini'\n",
+    "        measure of impurity\n",
+    "    Returns\n",
+    "    -------\n",
+    "    list\n",
+    "        returns a list of k feature names, selected based on univariate selection schema\n",
+    "    \"\"\"\n",
+    "    cols = list(dataset.columns.values)\n",
+    "    infoGains = []\n",
+    "    for col in cols:\n",
+    "        if col != target:\n",
+    "            infoGains.append(IG(col,target,dataset,measure))\n",
+    "    \n",
+    "    kMost = sorted(infoGains,reverse=True)\n",
+    "    \n",
+    "    infoFeatures = []\n",
+    "    for i in range(k):\n",
+    "        highest = kMost[i]\n",
+    "        index = infoGains.index(highest)\n",
+    "        infoFeatures.append(cols[index])\n",
+    "    return infoFeatures\n",
+    "    pass\n",
+    "\n",
+    "IUFS('evaluation', edf, 2, measure='entropy')"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "### Bonus\n",
+    "Improve the IUFS by including an option for gain ratio. Gain ratio is an alternative to information gain and can be used with either of the Gini index or entropy measures.  "
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 108,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "0.019048103852309112"
+      ]
+     },
+     "execution_count": 108,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "def GR(feature, target, dataset, measure):\n",
+    "    \"\"\"Calculates the gain ratio of a feature for a given target variable and a dataset.\n",
+    "    \n",
+    "    Parameters\n",
+    "    ----------\n",
+    "    feature: str\n",
+    "        name of the feature\n",
+    "    target: str\n",
+    "        name of the target variable\n",
+    "    dataset: pd.DataFrame\n",
+    "        dataframe for the dataset\n",
+    "    measure: str ('entropy' or 'gini')\n",
+    "        measure of impurity to be used\n",
+    "    Returns\n",
+    "    -------\n",
+    "    float\n",
+    "        gain ratio for the feature in the dataset for a given target variable\n",
+    "    \"\"\"\n",
+    "    df = dataset[[feature,target]]\n",
+    "    totalValues = df[feature].size\n",
+    "    infoGain = IG(feature, target, dataset, measure)\n",
+    "    if measure == 'gini':\n",
+    "        return infoGain/gini(feature,dataset)\n",
+    "    elif measure == 'entropy':\n",
+    "        return infoGain/entropy(feature,dataset)\n",
+    "    else:\n",
+    "        return\n",
+    "    pass\n",
+    "\n",
+    "    \n",
+    "\n",
+    "\n",
+    "GR('buying','evaluation', edf, 'gini') "
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 109,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "['safety', 'persons', 'buying', 'maint', 'lug_boot']"
+      ]
+     },
+     "execution_count": 109,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "def IUFS2(target, dataset, k, measure='entropy', gain='IG'):\n",
+    "    \"\"\"Finds k most informative features in the given dataset based on the target variable\n",
+    "        using information gain with the selected measure.\n",
+    "        \n",
+    "    Parameters\n",
+    "    ----------\n",
+    "    target: str\n",
+    "        name of the target variable\n",
+    "    dataset: pd.DataFrame\n",
+    "        dataframe for the dataset\n",
+    "    k: int\n",
+    "        number of features to return, must be less than or equal to number of descriptive features in dataset.\n",
+    "        in other words, 0 < k < len(dataset.columns).\n",
+    "    measure: str, 'entropy' or 'gini'\n",
+    "        measure of impurity\n",
+    "    gain: str, 'IG' or 'GR'\n",
+    "        feature selection metric ('IG' for information gain, 'GR' for gain ratio)\n",
+    "    Returns\n",
+    "    -------\n",
+    "    list\n",
+    "        returns a list of k feature names, selected based on univariate selection schema\n",
+    "    \"\"\"\n",
+    "    cols = list(dataset.columns.values)\n",
+    "    infoGains = []\n",
+    "    if gain == 'IG':\n",
+    "        for col in cols:\n",
+    "            if col != target:\n",
+    "                infoGains.append(IG(col,target,dataset,measure))\n",
+    "\n",
+    "    elif gain == 'GR':\n",
+    "        for col in cols:\n",
+    "            if col != target:\n",
+    "                infoGains.append(GR(col,target,dataset,measure))\n",
+    "    else:\n",
+    "        return\n",
+    "    kMost = sorted(infoGains,reverse=True)\n",
+    "\n",
+    "    infoFeatures = []\n",
+    "    for i in range(k):\n",
+    "        highest = kMost[i]\n",
+    "        index = infoGains.index(highest)\n",
+    "        infoFeatures.append(cols[index])\n",
+    "    return infoFeatures\n",
+    "    \n",
+    "    pass\n",
+    "\n",
+    "\n",
+    "IUFS2('evaluation', edf, 5, measure='gini', gain='IG')"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": []
+  }
+ ],
+ "metadata": {
+  "kernelspec": {
+   "display_name": "Python 3",
+   "language": "python",
+   "name": "python3"
+  },
+  "language_info": {
+   "codemirror_mode": {
+    "name": "ipython",
+    "version": 3
+   },
+   "file_extension": ".py",
+   "mimetype": "text/x-python",
+   "name": "python",
+   "nbconvert_exporter": "python",
+   "pygments_lexer": "ipython3",
+   "version": "3.7.4"
+  }
+ },
+ "nbformat": 4,
+ "nbformat_minor": 2
+}
